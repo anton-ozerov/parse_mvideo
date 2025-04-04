@@ -1,5 +1,6 @@
 /venv
 /.idea
 /data
+/__pycache__
 all_categories.py
 test.py
