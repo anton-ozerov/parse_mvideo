@@ -2,6 +2,6 @@
 /.idea
 /data
 /__pycache__
-all_categories.py
+all_categories.json
 test.py
 main.py
