@@ -184,22 +184,26 @@ def find_price_up():
 
 
 def main():
+    flag = input('Собирать статистику для Новосибирска после 20:00 по МСК? (да/нет): ').lower().strip()
     all_begin = time.time()
     all_categories = get_categories_ids()
+    # all_categories = get_categories_ids()[:2]  # для тестов
     begin = time.time()
     for i, category_id in enumerate(all_categories):
         print(f'[INFO] {category_id} - это {i + 1} из {len(all_categories)}')
         get_data(category_id, city_id=moscow_cityId)
-    print('НАЧАЛОООООООООООО', time.time() - begin)
+    print('МОСКВА СДЕЛАНА ЗА', time.time() - begin)
+    if flag == 'да':
+        now = datetime.now()
+        if now.hour < 20:  # сон до 20:00
+            time.sleep(round((datetime(now.year, now.month, now.day, 20, 00, 1, 0) -
+                              datetime.now()).total_seconds()))
 
-    while datetime.now().hour < 20:
-        time.sleep(60)
-
-    for i, category_id in enumerate(all_categories):
-        get_data(category_id, city_id=novosibirsk_cityId)
-    input('Разреши а')
-    find_price_up()
-    print(time.time() - all_begin)
+        for i, category_id in enumerate(all_categories):
+            get_data(category_id, city_id=novosibirsk_cityId)
+        # input("Продолжаем?: ")  # для тестов
+        find_price_up()
+        print(time.time() - all_begin)
 
 
 if __name__ == '__main__':
