@@ -69,7 +69,6 @@ def get_data(category_id, city_id):
     s = rq.Session()
     response = get_request(session=s, url='https://www.mvideo.ru/bff/products/v2/search', params=params,
                            city_id=city_id)
-
     total_items = response.get('body').get('total')
     if total_items is None:
         return '[Error] No items'
@@ -84,7 +83,7 @@ def get_data(category_id, city_id):
         # Ниже получение списка id товаров на страницах
         offset = str(page_num * items_limit)
         params = {
-            'categoryIds': '195',
+            'categoryIds': category_id,
             'offset': offset,
             'filterParams': 'WyJ0b2xrby12LW5hbGljaGlpIiwiLTEyIiwiZGEiXQ==',
             'limit': str(items_limit),
@@ -147,9 +146,9 @@ def get_data(category_id, city_id):
                     item['item_bonus'] = prices.get('item_bonus')
                     item['item_link'] = f'https://www.mvideo.ru/products/{item.get("nameTranslit")}-{product_id}'
 
-        with open(f'data\\{city_id}_{category_id}_result.json', 'w', encoding="utf-8") as file:
-            json.dump(products_description, file, indent=4, ensure_ascii=False)
-        print(f'[+] Finished {page_num + 1} of the {pages_count} pages')
+            print(f'[+] Finished {page_num + 1} of the {pages_count} pages')
+    with open(f'data\\{city_id}_{category_id}_result.json', 'w', encoding="utf-8") as file:
+        json.dump(products_description, file, indent=4, ensure_ascii=False)
 
 
 def find_price_up():
@@ -164,9 +163,9 @@ def find_price_up():
 
         with open(file_name, encoding="utf-8") as msk_file:  # смотрим файл Москвы
             msk_category = json.load(msk_file)
-        if '_'.join([novosibirsk_cityId, category_id, '4_result.json']) in listdir:  # Если есть, смотрим файл Новосибирск
-            print(f"data\\{'_'.join([novosibirsk_cityId, category_id, '4_result.json'])}")
-            with open(f"data\\{'_'.join([novosibirsk_cityId, category_id, '4_result.json'])}", encoding="utf-8") as nsk_file:
+        if '_'.join([novosibirsk_cityId, category_id, 'result.json']) in listdir:  # Если есть, смотрим файл Новосибирск
+            print(f"data\\{'_'.join([novosibirsk_cityId, category_id, 'result.json'])}")
+            with open(f"data\\{'_'.join([novosibirsk_cityId, category_id, 'result.json'])}", encoding="utf-8") as nsk_file:
                 nsk_category = json.load(nsk_file)
 
             for msk_item in msk_category.values():
