@@ -4,56 +4,12 @@ import time
 from datetime import datetime
 from math import ceil
 import requests as rq
-from config import get_cookies, get_headers, items_limit, moscow_cityId, novosibirsk_cityId
+from categories import get_all_categories, get_actual_ids_categories, get_categories_names
+from config import items_limit, moscow_cityId, novosibirsk_cityId
+from make_requests import get_request
 
 
-def get_request(url: str, params: dict = None, session: rq.Session = None, json_data: dict = None,
-                city_id: str = moscow_cityId) -> json:
-    """Выполнение request'а и возврат его json'a"""
-    time.sleep(1.65)  # При 1.5 не проходит
-    status = -1
-    response = None
-    while status != 200:
-        if session is None:
-            session = rq  # обычный requests
-        if params is None and json_data is None:
-            response = session.get(url, cookies=get_cookies(city_id), headers=get_headers())
-        elif json_data is None:
-            response = session.get(url, cookies=get_cookies(city_id), headers=get_headers(), params=params)
-        else:
-            response = session.post(url, cookies=get_cookies(city_id), headers=get_headers(), json=json_data)
-        status = response.status_code
-        if status != 200:
-            print('[!] Blocked', time.time())
-            time.sleep(5)
-            # Не работает, т.к. 5 секунд мало
-    return response.json()
-
-
-def get_categories_ids() -> list[str]:
-    """Находит все категории, записывает в файл и возвращает список строк с Id"""
-    response = get_request(url='https://www.mvideo.ru/bff/settings/v2/catalog')
-    big_categories = response.get('body').get('categories')  # Например: "Техника для кухни", "Аудиотехника"
-    with open('all_categories.json', 'w', encoding="utf-8") as file:
-        json.dump(big_categories, file, indent=4, ensure_ascii=False)
-    categories_ids = set()
-    for big_category in big_categories:
-        small_categories = big_category.get('categories')  # Например: "Приготовление пищи", "Посуда и аксессуары"
-        for small_category in small_categories:
-            categories = small_category.get('categories')  # Например: "Мясорубки", "Мультиварки"
-            for category in categories:
-                url = category.get('url')  # Пример: /melkaya-kuhonnaya-tehnika-3/mikrovolnovye-pechi-94?reff=menu_main
-                # Берем 94 (из примера с url)
-                category_id = str(url).replace('?', '/').split('/')[-2].split('-')[-1]
-                try:
-                    int(category_id)
-                    categories_ids.add(category_id)
-                except ValueError:  # если не подходящий url
-                    pass
-    return sorted(list(categories_ids))
-
-
-def get_data(category_id, city_id):
+def get_items_of_category(category_id, city_id):
     params = {
         'categoryIds': category_id,
         'offset': '0',
@@ -62,14 +18,10 @@ def get_data(category_id, city_id):
         'doTranslit': 'true',
         'context': 'v2dzaG9wX2lkZFMwMDJsY2F0ZWdvcnlfaWRzn2MxOTX/ZmNhdF9JZGMxOTX/',
     }
-
-    if not os.path.exists('data'):
-        os.mkdir('data')
-
     s = rq.Session()
     response = get_request(session=s, url='https://www.mvideo.ru/bff/products/v2/search', params=params,
                            city_id=city_id)
-    total_items = response.get('body').get('total')
+    total_items = response.get('body').get('total')  # Получение кол-ва товаров
     if total_items is None:
         return '[Error] No items'
 
@@ -80,7 +32,7 @@ def get_data(category_id, city_id):
     products_prices = {}
 
     for page_num in range(pages_count):
-        # Ниже получение списка id товаров на страницах
+        # Ниже получение списка id'шников товаров на страницах
         offset = str(page_num * items_limit)
         params = {
             'categoryIds': category_id,
@@ -134,7 +86,7 @@ def get_data(category_id, city_id):
                     'item_salePrice': item_sale_price,
                     'item_bonus': item_bonus
                 }
-            # Объединение инфы и цены
+            # Объединение информации о товаре и его цены
             for item in products_description.values():
                 product_id = item.get('productId')
 
@@ -147,6 +99,7 @@ def get_data(category_id, city_id):
                     item['item_link'] = f'https://www.mvideo.ru/products/{item.get("nameTranslit")}-{product_id}'
 
             print(f'[+] Finished {page_num + 1} of the {pages_count} pages')
+    # сохранение в файл данных о товарах данной категории
     with open(f'data\\{city_id}_{category_id}_result.json', 'w', encoding="utf-8") as file:
         json.dump(products_description, file, indent=4, ensure_ascii=False)
 
@@ -164,8 +117,8 @@ def find_price_up():
         with open(file_name, encoding="utf-8") as msk_file:  # смотрим файл Москвы
             msk_category = json.load(msk_file)
         if '_'.join([novosibirsk_cityId, category_id, 'result.json']) in listdir:  # Если есть, смотрим файл Новосибирск
-            print(f"data\\{'_'.join([novosibirsk_cityId, category_id, 'result.json'])}")
-            with open(f"data\\{'_'.join([novosibirsk_cityId, category_id, 'result.json'])}", encoding="utf-8") as nsk_file:
+            with (open(f"data\\{'_'.join([novosibirsk_cityId, category_id, 'result.json'])}", encoding="utf-8") as
+                  nsk_file):
                 nsk_category = json.load(nsk_file)
 
             for msk_item in msk_category.values():
@@ -183,14 +136,24 @@ def find_price_up():
 
 
 def main():
-    flag = input('Собирать статистику для Новосибирска после 20:00 по МСК? (да/нет): ').lower().strip()
-    all_begin = time.time()
-    all_categories = get_categories_ids()
-    # all_categories = get_categories_ids()[:2]  # для тестов
+    if not os.path.exists('data'):
+        os.mkdir('data')
+    if not ('actual_categories.json' in os.listdir('data')):
+        with open('data\\actual_categories.json', 'w', encoding='utf-8') as file:
+            ph = {"205": "Смартфоны", "118": "Все ноутбуки"}
+            json.dump(ph, file, indent=4, ensure_ascii=False)
+    get_all_categories()  # вызов функции для получения всех категорий и записи их в файл
+    input('Все доступные категории представлены в "data\\all_categories.json".\nА те категории, которые будут сейчас '
+          'проанализированы, записаны в "data\\actual_categories.json".\nНа данный момент есть возможность '
+          'отредактировать второй файл. После чего, нажмите Enter.')
+    all_categories = get_actual_ids_categories()
+    print("Выбраны категории:\n" +
+          "\n".join([f"{i + 1}. {name}" for i, name in enumerate(get_categories_names(all_categories))]))
+    flag = input('\nСобирать статистику для Новосибирска после 20:00 по МСК? (да/нет): ').lower().strip()
     begin = time.time()
     for i, category_id in enumerate(all_categories):
         print(f'[INFO] {category_id} - это {i + 1} из {len(all_categories)}')
-        get_data(category_id, city_id=moscow_cityId)
+        get_items_of_category(category_id, city_id=moscow_cityId)
     print('МОСКВА СДЕЛАНА ЗА', time.time() - begin)
     if flag == 'да':
         now = datetime.now()
@@ -199,10 +162,10 @@ def main():
                               datetime.now()).total_seconds()))
 
         for i, category_id in enumerate(all_categories):
-            get_data(category_id, city_id=novosibirsk_cityId)
+            get_items_of_category(category_id, city_id=novosibirsk_cityId)
         # input("Продолжаем?: ")  # для тестов
         find_price_up()
-        print(time.time() - all_begin)
+        print(time.time() - begin)
 
 
 if __name__ == '__main__':
